@@ -47,6 +47,7 @@
             clojure
             coreutils # for wc in scenarios
             deps-lock
+            jq
             jsonfmt
             just
             nixfmt

@@ -1,0 +1,28 @@
+name = "Transform and format JSON across two steps"
+
+[setup.files."config.json"]
+content = '{"version":1,"host":"localhost"}'
+
+[[steps]]
+run = "jq -c '.version = 2 | .port = 8080' config.json > config.tmp && mv config.tmp config.json"
+
+[steps.expected]
+exit-code = 0
+
+[steps.expected.files."config.json"]
+content = "{\"version\":2,\"host\":\"localhost\",\"port\":8080}\n"
+
+[[steps]]
+run = "jsonfmt -w config.json"
+
+[steps.expected]
+exit-code = 0
+
+[steps.expected.files."config.json"]
+content = """
+{
+  "version": 2,
+  "host": "localhost",
+  "port": 8080
+}
+"""
