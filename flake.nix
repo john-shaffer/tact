@@ -26,6 +26,7 @@
           ".clj"
           ".edn"
         ];
+        tactScenarios = lib.sources.sourceFilesBySuffices self [ ".toml" ];
         tactBin = clj-nix.lib.mkCljApp {
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
@@ -40,19 +41,31 @@
             }
           ];
         };
+        scenarioCheckInputs = with pkgs; [
+          coreutils
+          jq
+          jsonfmt
+        ];
       in
       {
+        checks.scenarios =
+          pkgs.runCommand "tact-check-scenarios" { buildInputs = [ tactBin ] ++ scenarioCheckInputs; }
+            ''
+              ${tactBin}/bin/tact ${tactScenarios}/scenarios/*.toml
+              touch $out
+            '';
+
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            clojure
-            coreutils # for wc in scenarios
-            deps-lock
-            jq
-            jsonfmt
-            just
-            nixfmt
-            taplo
-          ];
+          buildInputs =
+            with pkgs;
+            [
+              clojure
+              deps-lock
+              just
+              nixfmt
+              taplo
+            ]
+            ++ scenarioCheckInputs;
           shellHook = ''
             echo
             echo -e "Run '\033[1mjust <recipe>\033[0m' to get started"
