@@ -122,5 +122,6 @@
         total   (count results)]
     (println)
     (println (str passed "/" total " scenarios passed"))
+    (shutdown-agents)
     (when (< passed total)
       (System/exit 1))))
