@@ -114,13 +114,13 @@
             pass?      (every? #(= :pass (:type %)) all-checks)]
         (doseq [check all-checks]
           (print-check check))
+        (println)
         pass?))))
 
 (defn run-scenarios! [paths]
   (let [results (mapv run-scenario! paths)
         passed  (count (filter identity results))
         total   (count results)]
-    (println)
     (println (str passed "/" total " scenarios passed"))
     (shutdown-agents)
     (when (< passed total)
