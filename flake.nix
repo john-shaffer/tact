@@ -45,6 +45,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             clojure
+            coreutils # for wc in scenarios
             deps-lock
             jsonfmt
             just

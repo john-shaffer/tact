@@ -6,6 +6,9 @@ content = '{"b":1,"a":2}'
 [[steps]]
 run = "jsonfmt -w example.json"
 
+[steps.expected]
+exit-code = 0
+
 [steps.expected.files."example.json"]
 content = """
 {

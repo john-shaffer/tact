@@ -1,0 +1,9 @@
+name = "stdin and stdout"
+
+[[steps]]
+run = "wc"
+stdin = "hello world\nfoo bar baz\n"
+
+[steps.expected]
+stdout = "      2       5      24\n"
+exit-code = 0
