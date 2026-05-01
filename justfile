@@ -1,0 +1,41 @@
+alias b := build
+alias fmt := format
+alias t := test
+alias u := update
+
+[private]
+list:
+    @# First command in the file is invoked by default
+    @just --list
+
+# Build the tact package
+build:
+    nix build
+
+check: test
+    nix flake check
+
+# Format source code and data
+format:
+    just --fmt --unstable -f justfile
+    fd -e json -x jsonfmt -w
+    fd -e nix -x nixfmt
+    fd -e toml -x taplo format
+    standard-clj fix
+
+# Run tact
+run *args:
+    clojure -M -m tact.cli {{ args }}
+
+# Run all scenarios
+test:
+    clojure -M -m tact.cli scenarios/*.toml
+
+# Update dependencies
+update: && update-deps-lock
+    nix flake update
+    clj -M:antq --upgrade --force
+
+# Update deps-lock.json after changing Clojure deps
+update-deps-lock:
+    deps-lock deps.edn

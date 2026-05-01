@@ -1,0 +1,10 @@
+.*
+!.cljfmt.edn
+!.editorconfig
+!.envrc
+!.gitignore
+!.sand
+!.standard-clj.edn
+
+gcroots
+result

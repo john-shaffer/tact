@@ -1,0 +1,15 @@
+name = "Format JSON file"
+
+[setup.files."example.json"]
+content = '{"b":1,"a":2}'
+
+[[steps]]
+run = "jsonfmt -w example.json"
+
+[steps.expected.files."example.json"]
+content = """
+{
+  "b": 1,
+  "a": 2
+}
+"""
