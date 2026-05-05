@@ -23,13 +23,17 @@ format:
     fd -e toml -x taplo format
     standard-clj fix
 
+_jar-app-path:
+    @nix build .#jar-app --print-out-paths
+
 # Run tact
 run *args:
     clojure -M -m tact.cli {{ args }}
 
 # Run all scenarios
 test:
-    clojure -M -m tact.cli scenarios/*.toml
+    #!/usr/bin/env bash
+    PATH="$(just _jar-app-path)/bin:$PATH" tact scenarios/*.toml
 
 # Update dependencies
 update: && update-deps-lock

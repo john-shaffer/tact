@@ -27,6 +27,19 @@
           ".edn"
         ];
         tactScenarios = lib.sources.sourceFilesBySuffices self [ ".toml" ];
+        tactJarApp = clj-nix.lib.mkCljApp {
+          pkgs = nixpkgs.legacyPackages.${system};
+          modules = [
+            {
+              jdk = jdkPackage;
+              lockfile = lockfile + /deps-lock.json;
+              main-ns = "tact.cli";
+              name = "tact";
+              projectSrc = tactSrc;
+              version = "0.1.0";
+            }
+          ];
+        };
         tactBin = clj-nix.lib.mkCljApp {
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
@@ -73,6 +86,7 @@
           '';
         };
         packages.default = tactBin;
+        packages.jar-app = tactJarApp;
       }
     );
 }
