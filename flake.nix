@@ -20,6 +20,7 @@
         overlays = [ clj-nix.overlays.default ];
       };
       let
+        version = "0.1.0";
         jdkPackage = pkgs.jdk25_headless;
         lockfile = lib.sources.sourceByRegex self [ "^deps-lock.json$" ];
         tactSrc = lib.sources.sourceFilesBySuffices self [
@@ -36,7 +37,7 @@
               main-ns = "tact.cli";
               name = "tact";
               projectSrc = tactSrc;
-              version = "0.1.0";
+              version = version;
             }
           ];
         };
@@ -50,7 +51,7 @@
               name = "tact";
               nativeImage.enable = true;
               projectSrc = tactSrc;
-              version = "0.1.0";
+              version = version;
             }
           ];
         };
