@@ -9,6 +9,7 @@
 
 (def ^:private cli-options
   [["-h" "--help" "Show help"]
+   ["-o" "--output FILE" "Write JSON summary to FILE"]
    ["-v" "--version" "Show version"]])
 
 (defn ^:dynamic exit
@@ -33,4 +34,4 @@
       (exit 1 (str "Usage: tact [options] <scenario.toml>...\n\nOptions:\n" summary))
 
       :else
-      (runner/run-scenarios! arguments))))
+      (runner/run-scenarios! arguments :output (:output options)))))

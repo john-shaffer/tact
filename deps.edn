@@ -3,7 +3,8 @@
  {org.clojure/clojure {:mvn/version "1.12.4"}
   org.clojure/tools.cli {:mvn/version "1.4.256"}
   babashka/fs {:mvn/version "0.5.33"}
-  io.github.tonsky/toml-clj {:mvn/version "0.1.0"}}
+  io.github.tonsky/toml-clj {:mvn/version "0.1.0"}
+  org.clojure/data.json {:mvn/version "2.5.2"}}
  :aliases
  {:antq
   {:deps

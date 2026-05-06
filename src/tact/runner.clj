@@ -1,6 +1,7 @@
 (ns tact.runner
   (:require
    [babashka.fs :as fs]
+   [clojure.data.json :as json]
    [clojure.java.io :as io]
    [clojure.java.process :as p]
    [clojure.string :as str]
@@ -115,13 +116,33 @@
         (doseq [check all-checks]
           (print-check check))
         (println)
-        pass?))))
+        {:name   scenario-name
+         :path   (str path)
+         :status (if pass? "pass" "fail")
+         :checks (->> all-checks
+                      (remove #(= :pass (:type %)))
+                      (mapv #(-> (dissoc % :type :stderr)
+                                 (assoc :status "fail"))))}))))
 
-(defn run-scenarios! [paths]
+(defn- write-json! [output-file results]
+  (let [by-status (frequencies (map :status results))
+        data      {:summary  {:pass  (get by-status "pass" 0)
+                              :fail  (get by-status "fail" 0)
+                              :error (get by-status "error" 0)
+                              :skip  (get by-status "skip" 0)}
+                   :scenarios results}]
+    (fs/create-dirs (fs/parent (fs/absolutize (fs/path output-file))))
+    (with-open [w (io/writer output-file)]
+      (json/write data w :indent true)
+      (.write w "\n"))))
+
+(defn run-scenarios! [paths & {:keys [output]}]
   (let [results (mapv run-scenario! paths)
-        passed  (count (filter identity results))
+        passed  (count (filter #(= "pass" (:status %)) results))
         total   (count results)]
     (println (str passed "/" total " scenarios passed"))
+    (when output
+      (write-json! output results))
     (shutdown-agents)
     (when (< passed total)
       (System/exit 1))))
