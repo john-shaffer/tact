@@ -95,34 +95,40 @@
           (println "    stderr:")
           (println (format-multiline (:stderr check) "      ")))))))
 
-(defn run-scenario! [path]
-  (let [scenario      (load-scenario path)
-        base-dir      (fs/parent (fs/canonicalize path))
-        scenario-name (get scenario "name")]
+(defn- run-scenario-in-dir! [path scenario base-dir work-dir]
+  (when-let [files (get-in scenario ["setup" "files"])]
+    (setup-files! work-dir base-dir files))
+  (let [step-results
+        (mapv
+          (fn [step]
+            (let [result (run-step! work-dir step)]
+              {:result result
+               :checks (check-expected work-dir base-dir result step)}))
+          (get scenario "steps"))
+        all-checks (mapcat :checks step-results)
+        pass?      (every? #(= :pass (:type %)) all-checks)]
+    (doseq [check all-checks]
+      (print-check check))
+    (println)
+    {:name   (get scenario "name")
+     :path   (str path)
+     :status (if pass? "pass" "fail")
+     :checks (->> all-checks
+                  (remove #(= :pass (:type %)))
+                  (mapv #(-> (dissoc % :type :stderr)
+                             (assoc :status "fail"))))}))
+
+(defn run-scenario! [path & {:keys [dir]}]
+  (let [scenario  (load-scenario path)
+        base-dir  (fs/parent (fs/canonicalize path))]
     (println (str "[" path "]"))
-    (println "Testing:" scenario-name)
-    (fs/with-temp-dir [work-dir {:prefix "tact-"}]
-      (when-let [files (get-in scenario ["setup" "files"])]
-        (setup-files! work-dir base-dir files))
-      (let [step-results
-            (mapv
-              (fn [step]
-                (let [result (run-step! work-dir step)]
-                  {:result result
-                   :checks (check-expected work-dir base-dir result step)}))
-              (get scenario "steps"))
-            all-checks (mapcat :checks step-results)
-            pass?      (every? #(= :pass (:type %)) all-checks)]
-        (doseq [check all-checks]
-          (print-check check))
-        (println)
-        {:name   scenario-name
-         :path   (str path)
-         :status (if pass? "pass" "fail")
-         :checks (->> all-checks
-                      (remove #(= :pass (:type %)))
-                      (mapv #(-> (dissoc % :type :stderr)
-                                 (assoc :status "fail"))))}))))
+    (println "Testing:" (get scenario "name"))
+    (if dir
+      (let [work-dir (fs/path dir)]
+        (fs/create-dirs work-dir)
+        (run-scenario-in-dir! path scenario base-dir work-dir))
+      (fs/with-temp-dir [work-dir {:prefix "tact-"}]
+        (run-scenario-in-dir! path scenario base-dir work-dir)))))
 
 (defn- write-json! [output-file results]
   (let [by-status (frequencies (map :status results))
@@ -136,8 +142,8 @@
       (json/write data w :indent true)
       (.write w "\n"))))
 
-(defn run-scenarios! [paths & {:keys [output]}]
-  (let [results (mapv run-scenario! paths)
+(defn run-scenarios! [paths & {:keys [output dir]}]
+  (let [results (mapv #(run-scenario! % :dir dir) paths)
         passed  (count (filter #(= "pass" (:status %)) results))
         total   (count results)]
     (println (str passed "/" total " scenarios passed"))

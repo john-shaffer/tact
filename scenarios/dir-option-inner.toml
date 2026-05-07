@@ -1,0 +1,7 @@
+name = "Write a file in the work dir"
+
+[[steps]]
+run = "echo hello > output.txt"
+
+[steps.expected]
+exit-code = 0

@@ -1,0 +1,17 @@
+name = "--dir option runs scenario in specified directory"
+
+[setup.files."inner.toml"]
+file = "dir-option-inner.toml"
+
+[[steps]]
+run = "tact --dir ./mydir inner.toml"
+
+[steps.expected]
+exit-code = 0
+
+[[steps]]
+run = "cat mydir/output.txt"
+
+[steps.expected]
+exit-code = 0
+stdout = "hello\n"

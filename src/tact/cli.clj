@@ -8,7 +8,8 @@
 (def ^:private version "0.1.0")
 
 (def ^:private cli-options
-  [["-h" "--help" "Show help"]
+  [["-d" "--dir DIR" "Directory to set up and run scenarios in (default: temp dir)"]
+   ["-h" "--help" "Show help"]
    ["-o" "--output FILE" "Write JSON summary to FILE"]
    [nil "--version" "Show version"]])
 
@@ -34,4 +35,4 @@
       (exit 1 (str "Usage: tact [options] <scenario.toml>...\n\nOptions:\n" summary))
 
       :else
-      (runner/run-scenarios! arguments :output (:output options)))))
+      (runner/run-scenarios! arguments :output (:output options) :dir (:dir options)))))
