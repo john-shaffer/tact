@@ -28,7 +28,8 @@ _jar-app-path:
 
 # Run tact
 run *args:
-    clojure -M -m tact.cli {{ args }}
+    #!/usr/bin/env bash
+    PATH="$(just _jar-app-path)/bin:$PATH" tact {{ args }}
 
 # Run all scenarios
 test:
