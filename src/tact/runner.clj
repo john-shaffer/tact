@@ -142,8 +142,15 @@
       (json/write data w :indent true)
       (.write w "\n"))))
 
+(defn- expand-paths [paths]
+  (mapcat (fn [path]
+            (if (fs/directory? path)
+              (->> (fs/glob path "**.toml") sort (map str))
+              [path]))
+          paths))
+
 (defn run-scenarios! [paths & {:keys [output dir]}]
-  (let [results (mapv #(run-scenario! % :dir dir) paths)
+  (let [results (mapv #(run-scenario! % :dir dir) (expand-paths paths))
         passed  (count (filter #(= "pass" (:status %)) results))
         total   (count results)]
     (println (str passed "/" total " scenarios passed"))
