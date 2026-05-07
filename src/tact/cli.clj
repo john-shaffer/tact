@@ -10,7 +10,7 @@
 (def ^:private cli-options
   [["-h" "--help" "Show help"]
    ["-o" "--output FILE" "Write JSON summary to FILE"]
-   ["-v" "--version" "Show version"]])
+   [nil "--version" "Show version"]])
 
 (defn ^:dynamic exit
   ([status] (System/exit status))
