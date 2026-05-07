@@ -65,7 +65,7 @@
         checks.scenarios =
           pkgs.runCommand "tact-check-scenarios" { buildInputs = [ tactBin ] ++ scenarioCheckInputs; }
             ''
-              ${tactBin}/bin/tact ${tactScenarios}/scenarios/*.toml
+              ${tactBin}/bin/tact ${tactScenarios}/test
               touch $out
             '';
 

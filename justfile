@@ -34,7 +34,7 @@ run *args:
 # Run all scenarios
 test:
     #!/usr/bin/env bash
-    PATH="$(just _jar-app-path)/bin:$PATH" tact scenarios/*.toml
+    PATH="$(just _jar-app-path)/bin:$PATH" tact test
 
 # Update dependencies
 update: && update-deps-lock
