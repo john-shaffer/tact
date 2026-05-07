@@ -28,30 +28,26 @@
           ".edn"
         ];
         tactScenarios = lib.sources.sourceFilesBySuffices self [ ".toml" ];
+        tactCljModule = {
+          jdk = jdkPackage;
+          lockfile = lockfile + /deps-lock.json;
+          main-ns = "tact.cli";
+          name = "tact";
+          projectSrc = tactSrc;
+          version = version;
+        };
         tactJarApp = clj-nix.lib.mkCljApp {
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
-            {
-              jdk = jdkPackage;
-              lockfile = lockfile + /deps-lock.json;
-              main-ns = "tact.cli";
-              name = "tact";
-              projectSrc = tactSrc;
-              version = version;
-            }
+            tactCljModule
           ];
         };
         tactBin = clj-nix.lib.mkCljApp {
           pkgs = nixpkgs.legacyPackages.${system};
           modules = [
+            tactCljModule
             {
-              jdk = jdkPackage;
-              lockfile = lockfile + /deps-lock.json;
-              main-ns = "tact.cli";
-              name = "tact";
               nativeImage.enable = true;
-              projectSrc = tactSrc;
-              version = version;
             }
           ];
         };
