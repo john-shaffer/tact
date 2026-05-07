@@ -26,13 +26,21 @@ format:
 _jar-app-path:
     @nix build .#jar-app --print-out-paths
 
+_nix-system:
+    @nix eval --impure --raw --expr 'builtins.currentSystem'
+
 # Run tact
 run *args:
     #!/usr/bin/env bash
     PATH="$(just _jar-app-path)/bin:$PATH" tact {{ args }}
 
-# Run all scenarios
+# Run all scenarios against native-image binary
 test:
+    #!/usr/bin/env bash
+    OUT=$(nix build .#checks."$(just _nix-system)".scenarios --print-out-paths)
+
+# Run all scenarios against dev jar
+test-jar:
     #!/usr/bin/env bash
     PATH="$(just _jar-app-path)/bin:$PATH" tact test
 
