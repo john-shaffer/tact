@@ -1,7 +1,16 @@
 name = "JSON output flag writes a run summary"
 
 [setup.files."inner.toml"]
-file = "json-output-inner.toml"
+content = """
+name = "Simple inner scenario"
+
+[[steps]]
+run = "echo ok"
+
+[steps.expected]
+exit-code = 0
+stdout = "ok\\n"
+"""
 
 [[steps]]
 run = "tact --output result.json inner.toml"

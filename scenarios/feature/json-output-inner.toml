@@ -1,8 +1,0 @@
-name = "Simple inner scenario"
-
-[[steps]]
-run = "echo ok"
-
-[steps.expected]
-exit-code = 0
-stdout = "ok\n"
