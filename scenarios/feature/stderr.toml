@@ -1,0 +1,8 @@
+name = "stderr output check"
+
+[[steps]]
+run = "echo 'error message' >&2"
+
+[steps.expected]
+exit-code = 0
+stderr = "error message\n"

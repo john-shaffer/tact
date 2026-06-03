@@ -1,0 +1,7 @@
+name = "Non-zero exit code assertion"
+
+[[steps]]
+run = "exit 42"
+
+[steps.expected]
+exit-code = 42
