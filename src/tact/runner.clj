@@ -37,14 +37,23 @@
   (let [full-path (fs/path work-dir path)]
     (if-not (fs/exists? full-path)
       {:type :fail :path path :message (str "File does not exist: " path)}
-      (let [actual   (slurp (str full-path))
-            expected (resolve-content base-dir spec)]
-        (if (= actual expected)
-          {:type :pass :path path}
-          {:type :fail :path path
-           :message  (str "File content mismatch: " path)
-           :expected expected
-           :actual   actual})))))
+      (let [actual-str (slurp (str full-path))]
+        (if-let [json-expected (get spec "json-content")]
+          (let [actual-parsed   (json/read-str actual-str)
+                expected-parsed (json/read-str json-expected)]
+            (if (= actual-parsed expected-parsed)
+              {:type :pass :path path}
+              {:type :fail :path path
+               :message  (str "JSON content mismatch: " path)
+               :expected (str (json/write-str expected-parsed :indent true) "\n")
+               :actual   (str (json/write-str actual-parsed :indent true) "\n")}))
+          (let [expected (resolve-content base-dir spec)]
+            (if (= actual-str expected)
+              {:type :pass :path path}
+              {:type :fail :path path
+               :message  (str "File content mismatch: " path)
+               :expected expected
+               :actual   actual-str})))))))
 
 (defn- check-expected [work-dir base-dir result {:strs [expected]}]
   (let [{:strs [files stdout stderr exit-code] :or {exit-code 0}} expected

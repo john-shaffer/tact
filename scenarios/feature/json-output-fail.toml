@@ -25,7 +25,7 @@ run = "jq '{summary,scenarios:[.scenarios[]|{name,path,status,checks:[.checks[]|
 exit-code = 0
 
 [steps.expected.files."normalized.json"]
-content = """
+json-content = """
 {
   "summary": {
     "pass": 0,

@@ -1,0 +1,24 @@
+name = "json-content mismatch is detected"
+
+[setup.files."inner.toml"]
+content = """
+name = "Inner with json-content mismatch"
+
+[setup.files."data.json"]
+content = '{"a":1}'
+
+[[steps]]
+run = "true"
+
+[steps.expected]
+exit-code = 0
+
+[steps.expected.files."data.json"]
+json-content = '{"a":2}'
+"""
+
+[[steps]]
+run = "tact inner.toml"
+
+[steps.expected]
+exit-code = 1
