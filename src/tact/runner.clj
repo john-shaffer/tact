@@ -53,30 +53,26 @@
        :expected (str (json/write-str expected-parsed :indent true) "\n")
        :actual   (str (json/write-str actual-parsed :indent true) "\n")})))
 
+(defn- parse-json-spec [v]
+  (if (string? v) (json/read-str v) v))
+
 (defn- check-file [work-dir base-dir path spec]
   (let [full-path (fs/path work-dir path)]
     (if-not (fs/exists? full-path)
       {:type :fail :path path :message (str "File does not exist: " path)}
-      (let [actual-str (slurp (str full-path))]
+      (let [actual-str (slurp (str full-path))
+            open       (get spec "json-open")
+            exact      (get spec "json")]
         (cond
-          (get spec "json-open")
-          (let [v (get spec "json-open")]
-            (compare-json path actual-str
-              (if (string? v) (json/read-str v) v)
-              json-open-match?))
-          (get spec "json")
-          (let [v (get spec "json")]
-            (compare-json path actual-str
-              (if (string? v) (json/read-str v) v)
-              =))
-          :else
-          (let [expected (resolve-content base-dir spec)]
-            (if (= actual-str expected)
-              {:type :pass :path path}
-              {:type :fail :path path
-               :message  (str "File content mismatch: " path)
-               :expected expected
-               :actual   actual-str})))))))
+          open  (compare-json path actual-str (parse-json-spec open) json-open-match?)
+          exact (compare-json path actual-str (parse-json-spec exact) =)
+          :else (let [expected (resolve-content base-dir spec)]
+                  (if (= actual-str expected)
+                    {:type :pass :path path}
+                    {:type :fail :path path
+                     :message  (str "File content mismatch: " path)
+                     :expected expected
+                     :actual   actual-str})))))))
 
 (defn- check-expected [work-dir base-dir result {:strs [expected]}]
   (let [{:strs [files stdout stderr exit-code] :or {exit-code 0}} expected
