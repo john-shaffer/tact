@@ -1,0 +1,10 @@
+name = "json-open matches JSON file ignoring extra keys"
+
+[setup.files."data.json"]
+content = '{"name":"alice","age":30,"extra":"ignored"}'
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."data.json"]
+json-open = '{"name":"alice","age":30}'
