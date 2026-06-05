@@ -1,0 +1,21 @@
+name = "json-open mismatch is detected"
+
+[setup.files."inner.toml"]
+content = """
+name = "Inner with json-open mismatch"
+
+[setup.files."data.json"]
+content = '{"a":1,"b":2}'
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."data.json"]
+json-open = '{"a":99}'
+"""
+
+[[steps]]
+run = "tact inner.toml"
+
+[steps.expected]
+exit-code = 1
