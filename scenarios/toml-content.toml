@@ -6,6 +6,6 @@ content = '{"name":"alice","age":30}'
 [[steps]]
 run = "true"
 
-[steps.expected.files."data.json".json-content]
+[steps.expected.files."data.json".json]
 name = "alice"
 age = 30

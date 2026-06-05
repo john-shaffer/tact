@@ -33,9 +33,20 @@
      :stderr (slurp (p/stderr proc))
      :exit   @(p/exit-ref proc)}))
 
-(defn- check-json-value [path actual-str expected-parsed]
+(defn- json-open-match? [expected actual]
+  (cond
+    (map? expected)
+    (every? (fn [[k v]] (and (contains? actual k)
+                             (json-open-match? v (get actual k))))
+            expected)
+    (sequential? expected)
+    (and (= (count expected) (count actual))
+         (every? true? (map json-open-match? expected actual)))
+    :else (= expected actual)))
+
+(defn- compare-json [path actual-str expected-parsed match-fn]
   (let [actual-parsed (json/read-str actual-str)]
-    (if (= actual-parsed expected-parsed)
+    (if (match-fn expected-parsed actual-parsed)
       {:type :pass :path path}
       {:type :fail :path path
        :message  (str "JSON content mismatch: " path)
@@ -46,11 +57,19 @@
   (let [full-path (fs/path work-dir path)]
     (if-not (fs/exists? full-path)
       {:type :fail :path path :message (str "File does not exist: " path)}
-      (let [actual-str (slurp (str full-path))
-            json (get spec "json-content")]
-        (if json
-          (check-json-value path actual-str
-            (if (string? json) (json/read-str json) json))
+      (let [actual-str (slurp (str full-path))]
+        (cond
+          (get spec "json-open")
+          (let [v (get spec "json-open")]
+            (compare-json path actual-str
+              (if (string? v) (json/read-str v) v)
+              json-open-match?))
+          (get spec "json")
+          (let [v (get spec "json")]
+            (compare-json path actual-str
+              (if (string? v) (json/read-str v) v)
+              =))
+          :else
           (let [expected (resolve-content base-dir spec)]
             (if (= actual-str expected)
               {:type :pass :path path}

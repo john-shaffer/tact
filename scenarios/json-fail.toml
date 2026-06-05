@@ -1,8 +1,8 @@
-name = "json-content mismatch is detected"
+name = "json mismatch is detected"
 
 [setup.files."inner.toml"]
 content = """
-name = "Inner with json-content mismatch"
+name = "Inner with json mismatch"
 
 [setup.files."data.json"]
 content = '{"a":1}'
@@ -14,7 +14,7 @@ run = "true"
 exit-code = 0
 
 [steps.expected.files."data.json"]
-json-content = '{"a":2}'
+json = '{"a":2}'
 """
 
 [[steps]]
