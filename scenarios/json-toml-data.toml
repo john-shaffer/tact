@@ -1,4 +1,4 @@
-name = "toml-content checks JSON file using TOML data structures"
+name = "json accepts TOML data structures as expected value"
 
 [setup.files."data.json"]
 content = '{"name":"alice","age":30}'
