@@ -1,0 +1,11 @@
+name = "toml-content checks JSON file using TOML data structures"
+
+[setup.files."data.json"]
+content = '{"name":"alice","age":30}'
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."data.json".json-content]
+name = "alice"
+age = 30

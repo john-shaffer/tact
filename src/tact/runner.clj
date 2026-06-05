@@ -33,20 +33,24 @@
      :stderr (slurp (p/stderr proc))
      :exit   @(p/exit-ref proc)}))
 
+(defn- check-json-value [path actual-str expected-parsed]
+  (let [actual-parsed (json/read-str actual-str)]
+    (if (= actual-parsed expected-parsed)
+      {:type :pass :path path}
+      {:type :fail :path path
+       :message  (str "JSON content mismatch: " path)
+       :expected (str (json/write-str expected-parsed :indent true) "\n")
+       :actual   (str (json/write-str actual-parsed :indent true) "\n")})))
+
 (defn- check-file [work-dir base-dir path spec]
   (let [full-path (fs/path work-dir path)]
     (if-not (fs/exists? full-path)
       {:type :fail :path path :message (str "File does not exist: " path)}
-      (let [actual-str (slurp (str full-path))]
-        (if-let [json-expected (get spec "json-content")]
-          (let [actual-parsed   (json/read-str actual-str)
-                expected-parsed (json/read-str json-expected)]
-            (if (= actual-parsed expected-parsed)
-              {:type :pass :path path}
-              {:type :fail :path path
-               :message  (str "JSON content mismatch: " path)
-               :expected (str (json/write-str expected-parsed :indent true) "\n")
-               :actual   (str (json/write-str actual-parsed :indent true) "\n")}))
+      (let [actual-str (slurp (str full-path))
+            json (get spec "json-content")]
+        (if json
+          (check-json-value path actual-str
+            (if (string? json) (json/read-str json) json))
           (let [expected (resolve-content base-dir spec)]
             (if (= actual-str expected)
               {:type :pass :path path}
