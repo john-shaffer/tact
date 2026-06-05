@@ -10,7 +10,7 @@ run = "jq -c '.version = 2 | .port = 8080' config.json > config.tmp && mv config
 exit-code = 0
 
 [steps.expected.files."config.json"]
-content = "{\"version\":2,\"host\":\"localhost\",\"port\":8080}\n"
+json = '{"version":2,"host":"localhost","port":8080}'
 
 [[steps]]
 run = "jsonfmt -w config.json"
