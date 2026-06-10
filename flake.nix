@@ -21,7 +21,7 @@
       };
       let
         version = "0.1.0";
-        jdkPackage = pkgs.jdk25_headless;
+        jdkPackage = pkgs.graalvmPackages.graalvm-ce; # Provides up-to-date JDK and native-image binaries
         lockfile = lib.sources.sourceByRegex self [ "^deps-lock.json$" ];
         tactSrc = lib.sources.sourceFilesBySuffices self [
           ".clj"
