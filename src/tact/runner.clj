@@ -312,14 +312,15 @@
             (let [step-env (merge env
                                   (expand-env (merge base-env env) (get step "env"))
                                   {"TACT_WORK_DIR" (str work-dir)})
-                  result   (run-step! work-dir step-env (step-timeout (get step "timeout" timeout)) step)]
+                  result   (run-step! work-dir step-env (step-timeout (get step "timeout" timeout)) step)
+                  checks   (check-expected work-dir base-dir result step)]
+              ;; Print as each step finishes, so long scenarios show progress
+              (run! print-check checks)
               {:result result
-               :checks (check-expected work-dir base-dir result step)}))
+               :checks checks}))
           (get scenario "steps"))
         all-checks (mapcat :checks step-results)
         pass?      (every? #(= :pass (:type %)) all-checks)]
-    (doseq [check all-checks]
-      (print-check check))
     (println)
     {:name   (get scenario "name")
      :path   (str path)
