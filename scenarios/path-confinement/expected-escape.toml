@@ -1,0 +1,26 @@
+name = "Expected files cannot be read outside the work dir"
+
+[setup.files."inner.toml"]
+content = """
+name = "Absolute expected file"
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."/etc/hostname"]
+content = ""
+"""
+
+[[steps]]
+run = "tact --output result.json inner.toml"
+
+[steps.expected]
+exit-code = 1
+
+[steps.expected.files."result.json"]
+json-open = """
+{
+  "summary": {"pass": 0, "fail": 0, "error": 1},
+  "scenarios": [{"status": "error", "message": "Path must be inside the work dir: /etc/hostname"}]
+}
+"""

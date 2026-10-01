@@ -1,0 +1,23 @@
+name = "Setup files cannot be written outside the work dir"
+
+[setup.files."inner.toml"]
+content = """
+name = "Escaping setup file"
+
+[setup.files."../escape.txt"]
+content = "oops"
+
+[[steps]]
+run = "true"
+"""
+
+[[steps]]
+run = "tact --dir work --output result.json inner.toml; test $? = 1 && test ! -e escape.txt"
+
+[steps.expected.files."result.json"]
+json-open = """
+{
+  "summary": {"pass": 0, "fail": 0, "error": 1},
+  "scenarios": [{"status": "error", "message": "Path must be inside the work dir: ../escape.txt"}]
+}
+"""

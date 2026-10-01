@@ -9,6 +9,7 @@
   (:import
    (java.io ByteArrayOutputStream InputStream)
    (java.lang Process ProcessHandle)
+   (java.nio.file Path)
    (java.util.concurrent TimeUnit)
    (java.util.stream Stream)))
 
@@ -22,6 +23,15 @@
 (defn- load-scenario [path]
   (-> path slurp toml/read-string))
 
+(defn- work-path
+  "Resolves path inside work-dir, refusing paths that would escape it."
+  [work-dir path]
+  (let [root   (fs/normalize (fs/absolutize work-dir))
+        target (fs/normalize (fs/path root path))]
+    (if (and (.startsWith ^Path target ^Path root) (not= target root))
+      target
+      (scenario-error (str "Path must be inside the work dir: " path)))))
+
 (defn- resolve-content [base-dir {:strs [content file]}]
   (if file
     (slurp (str (fs/path base-dir file)))
@@ -29,7 +39,7 @@
 
 (defn- setup-files! [work-dir base-dir files]
   (doseq [[path spec] files]
-    (let [target (fs/path work-dir path)]
+    (let [target (work-path work-dir path)]
       (fs/create-dirs (fs/parent target))
       (spit (str target) (resolve-content base-dir spec)))))
 
@@ -102,7 +112,7 @@
   (if (string? v) (json/read-str v) v))
 
 (defn- check-file [work-dir base-dir path spec]
-  (let [full-path (fs/path work-dir path)]
+  (let [full-path (work-path work-dir path)]
     (if-not (fs/exists? full-path)
       {:type :fail :path path :message (str "File does not exist: " path)}
       (let [actual-str (slurp (str full-path))
