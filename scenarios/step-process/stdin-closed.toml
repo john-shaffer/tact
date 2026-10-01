@@ -1,0 +1,7 @@
+name = "stdin is closed when no stdin is given"
+
+[[steps]]
+run = "cat"
+
+[steps.expected]
+stdout = ""

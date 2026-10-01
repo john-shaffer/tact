@@ -22,12 +22,11 @@
       (spit (str target) (resolve-content base-dir spec)))))
 
 (defn- run-step! [work-dir {:strs [run stdin]}]
-  (let [opts (cond-> {:dir (str work-dir) :err :pipe :out :pipe}
-               stdin (assoc :in :pipe))
-        proc (p/start opts "bash" "-c" run)]
-    (when stdin
-      (future
-        (with-open [out (io/output-stream (p/stdin proc))]
+  (let [proc (p/start {:dir (str work-dir) :err :pipe :in :pipe :out :pipe} "bash" "-c" run)]
+    ;; Always close stdin, so commands that read it see EOF instead of waiting forever
+    (future
+      (with-open [out (io/output-stream (p/stdin proc))]
+        (when stdin
           (io/copy (.getBytes ^String stdin "UTF-8") out))))
     ;; Read both streams concurrently, so neither pipe can fill up and block the step
     (let [stdout (future (slurp (p/stdout proc)))
