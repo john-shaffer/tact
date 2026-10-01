@@ -1,0 +1,39 @@
+name = "Steps that exceed their timeout are killed"
+
+[setup.files."step-timeout.toml"]
+content = """
+name = "Step timeout"
+
+[[steps]]
+run = "sleep 30; true"
+timeout = 1
+"""
+
+[setup.files."scenario-timeout.toml"]
+content = """
+name = "Scenario timeout"
+timeout = 1
+
+[[steps]]
+run = "sleep 30; true"
+"""
+
+[setup.files."default-timeout.toml"]
+content = """
+name = "Default timeout"
+
+[[steps]]
+run = "sleep 30; true"
+"""
+
+[[steps]]
+run = "tact step-timeout.toml > out.txt; test $? = 1 && grep -qF '✗ timeout - step timed out after 1s' out.txt"
+timeout = 20
+
+[[steps]]
+run = "tact scenario-timeout.toml > out.txt; test $? = 1 && grep -qF '✗ timeout - step timed out after 1s' out.txt"
+timeout = 20
+
+[[steps]]
+run = "tact --timeout 1 default-timeout.toml > out.txt; test $? = 1 && grep -qF '✗ timeout - step timed out after 1s' out.txt"
+timeout = 20

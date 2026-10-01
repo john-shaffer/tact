@@ -11,6 +11,10 @@
   [["-d" "--dir DIR" "Directory to set up and run scenarios in (default: temp dir)"]
    ["-h" "--help" "Show help"]
    ["-o" "--output FILE" "Write JSON summary to FILE"]
+   ["-t" "--timeout SECONDS" "Default step timeout, overridable per scenario or step"
+    :default runner/default-timeout
+    :parse-fn #(or (parse-long %) (parse-double %))
+    :validate [#(and % (pos? %)) "Must be a positive number"]]
    [nil "--version" "Show version"]])
 
 (defn ^:dynamic exit
@@ -35,4 +39,7 @@
       (exit 1 (str "Usage: tact [options] <scenario.toml>...\n\nOptions:\n" summary))
 
       :else
-      (runner/run-scenarios! arguments :output (:output options) :dir (:dir options)))))
+      (runner/run-scenarios! arguments
+                             :output (:output options)
+                             :dir (:dir options)
+                             :timeout (:timeout options)))))

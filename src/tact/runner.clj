@@ -5,7 +5,19 @@
    [clojure.java.io :as io]
    [clojure.java.process :as p]
    [clojure.string :as str]
-   [toml-clj.core :as toml]))
+   [toml-clj.core :as toml])
+  (:import
+   (java.io ByteArrayOutputStream InputStream)
+   (java.lang Process ProcessHandle)
+   (java.util.concurrent TimeUnit)
+   (java.util.stream Stream)))
+
+(def default-timeout
+  "Seconds a step may run before it is killed."
+  600)
+
+(defn- scenario-error [msg]
+  (throw (ex-info msg {:type ::scenario-error})))
 
 (defn- load-scenario [path]
   (-> path slurp toml/read-string))
@@ -21,19 +33,50 @@
       (fs/create-dirs (fs/parent target))
       (spit (str target) (resolve-content base-dir spec)))))
 
-(defn- run-step! [work-dir {:strs [run stdin]}]
-  (let [proc (p/start {:dir (str work-dir) :err :pipe :in :pipe :out :pipe} "bash" "-c" run)]
+(defn- step-timeout [timeout]
+  (if (and (number? timeout) (pos? timeout))
+    timeout
+    (scenario-error (str "timeout must be a positive number of seconds: " (pr-str timeout)))))
+
+(defn- drain
+  "Copies in to a buffer on a background thread, so the pipe can't fill up
+  and block the step."
+  [in]
+  (let [buf (ByteArrayOutputStream.)]
+    {:buf  buf
+     :done (future (with-open [^InputStream in in] (io/copy in buf)))}))
+
+(defn- drained-str
+  "Returns what was drained so far, after giving the copy a moment to finish.
+  A background process can keep the pipe open after the step exits."
+  [{:keys [^ByteArrayOutputStream buf done]}]
+  (try
+    (deref done 5000 nil)
+    (catch Exception _))
+  (.toString buf "UTF-8"))
+
+(defn- kill-tree! [^Process proc]
+  (let [descendants (-> (.descendants proc) ^Stream (.iterator) iterator-seq vec)]
+    (.destroyForcibly proc)
+    (run! #(.destroyForcibly ^ProcessHandle %) descendants)))
+
+(defn- run-step! [work-dir timeout {:strs [run stdin]}]
+  (let [proc   (p/start {:dir (str work-dir) :err :pipe :in :pipe :out :pipe} "bash" "-c" run)
+        stdout (drain (p/stdout proc))
+        stderr (drain (p/stderr proc))]
     ;; Always close stdin, so commands that read it see EOF instead of waiting forever
     (future
       (with-open [out (io/output-stream (p/stdin proc))]
         (when stdin
           (io/copy (.getBytes ^String stdin "UTF-8") out))))
-    ;; Read both streams concurrently, so neither pipe can fill up and block the step
-    (let [stdout (future (slurp (p/stdout proc)))
-          stderr (future (slurp (p/stderr proc)))]
-      {:stdout @stdout
-       :stderr @stderr
-       :exit   @(p/exit-ref proc)})))
+    (let [finished? (.waitFor proc (long (* 1000 timeout)) TimeUnit/MILLISECONDS)]
+      (when-not finished?
+        (kill-tree! proc))
+      {:stdout    (drained-str stdout)
+       :stderr    (drained-str stderr)
+       :exit      (when finished? (.exitValue proc))
+       :timed-out (not finished?)
+       :timeout   timeout})))
 
 (defn- json-open-match? [expected actual]
   (cond
@@ -77,25 +120,29 @@
                      :actual   actual-str})))))))
 
 (defn- check-expected [work-dir base-dir result {:strs [expected]}]
-  (let [{:strs [files stdout stderr exit-code] :or {exit-code 0}} expected
-        file-checks (mapv (fn [[path spec]] (check-file work-dir base-dir path spec)) files)
-        exit-check  (if (= exit-code (:exit result))
-                      {:type :pass :check "exit"}
-                      {:type :fail :check "exit" :message "exit code mismatch"
-                       :expected exit-code :actual (:exit result)
-                       :stderr (:stderr result)})]
-    (cond-> (conj file-checks exit-check)
-      (contains? expected "stdout")
-      (conj (if (= stdout (:stdout result))
-              {:type :pass :check "stdout"}
-              {:type :fail :check "stdout" :message "stdout mismatch"
-               :expected stdout :actual (:stdout result)}))
+  (if (:timed-out result)
+    [{:type :fail :check "timeout"
+      :message (str "step timed out after " (:timeout result) "s")
+      :stderr (:stderr result)}]
+    (let [{:strs [files stdout stderr exit-code] :or {exit-code 0}} expected
+          file-checks (mapv (fn [[path spec]] (check-file work-dir base-dir path spec)) files)
+          exit-check  (if (= exit-code (:exit result))
+                        {:type :pass :check "exit"}
+                        {:type :fail :check "exit" :message "exit code mismatch"
+                         :expected exit-code :actual (:exit result)
+                         :stderr (:stderr result)})]
+      (cond-> (conj file-checks exit-check)
+        (contains? expected "stdout")
+        (conj (if (= stdout (:stdout result))
+                {:type :pass :check "stdout"}
+                {:type :fail :check "stdout" :message "stdout mismatch"
+                 :expected stdout :actual (:stdout result)}))
 
-      (contains? expected "stderr")
-      (conj (if (= stderr (:stderr result))
-              {:type :pass :check "stderr"}
-              {:type :fail :check "stderr" :message "stderr mismatch"
-               :expected stderr :actual (:stderr result)})))))
+        (contains? expected "stderr")
+        (conj (if (= stderr (:stderr result))
+                {:type :pass :check "stderr"}
+                {:type :fail :check "stderr" :message "stderr mismatch"
+                 :expected stderr :actual (:stderr result)}))))))
 
 (defn- format-multiline [s indent]
   (->> (str/split-lines s)
@@ -125,13 +172,14 @@
           (println "    stderr:")
           (println (format-multiline (:stderr check) "      ")))))))
 
-(defn- run-scenario-in-dir! [path scenario base-dir work-dir]
+(defn- run-scenario-in-dir! [path scenario base-dir work-dir default-timeout]
   (when-let [files (get-in scenario ["setup" "files"])]
     (setup-files! work-dir base-dir files))
-  (let [step-results
+  (let [timeout (get scenario "timeout" default-timeout)
+        step-results
         (mapv
           (fn [step]
-            (let [result (run-step! work-dir step)]
+            (let [result (run-step! work-dir (step-timeout (get step "timeout" timeout)) step)]
               {:result result
                :checks (check-expected work-dir base-dir result step)}))
           (get scenario "steps"))
@@ -148,7 +196,7 @@
                   (mapv #(-> (dissoc % :type :stderr)
                              (assoc :status "fail"))))}))
 
-(defn run-scenario! [path & {:keys [dir]}]
+(defn run-scenario! [path & {:keys [dir timeout] :or {timeout default-timeout}}]
   (println (str "[" path "]"))
   (try
     (let [scenario (load-scenario path)
@@ -157,9 +205,9 @@
       (if dir
         (let [work-dir (fs/path dir)]
           (fs/create-dirs work-dir)
-          (run-scenario-in-dir! path scenario base-dir work-dir))
+          (run-scenario-in-dir! path scenario base-dir work-dir timeout))
         (fs/with-temp-dir [work-dir {:prefix "tact-"}]
-          (run-scenario-in-dir! path scenario base-dir work-dir))))
+          (run-scenario-in-dir! path scenario base-dir work-dir timeout))))
     (catch Exception e
       (let [message (or (ex-message e) (str e))]
         (println "  ! error -" message)
@@ -188,8 +236,8 @@
               [path]))
           paths))
 
-(defn run-scenarios! [paths & {:keys [output dir]}]
-  (let [results (mapv #(run-scenario! % :dir dir) (expand-paths paths))
+(defn run-scenarios! [paths & {:keys [output dir timeout]}]
+  (let [results (mapv #(run-scenario! % :dir dir :timeout timeout) (expand-paths paths))
         passed  (count (filter #(= "pass" (:status %)) results))
         total   (count results)]
     (println (str passed "/" total " scenarios passed"))
