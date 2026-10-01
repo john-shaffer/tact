@@ -1,0 +1,50 @@
+name = "Unknown keys are errors"
+
+[setup.files."step.toml"]
+content = """
+name = "Unknown step key"
+
+[[steps]]
+run = "echo ran > ran.txt"
+
+[[steps]]
+run = "true"
+exit_code = 0
+"""
+
+[setup.files."expected.toml"]
+content = """
+name = "Unknown expected key"
+
+[[steps]]
+run = "echo hi"
+
+[steps.expected]
+stdot = "hi\\n"
+"""
+
+[setup.files."file.toml"]
+content = """
+name = "Unknown file assertion key"
+
+[[steps]]
+run = "echo hi > hi.txt"
+
+[steps.expected.files."hi.txt"]
+contnet = "hi\\n"
+"""
+
+[[steps]]
+run = "tact --dir work --output result.json step.toml expected.toml file.toml; test $? = 1 && test ! -e work/ran.txt"
+
+[steps.expected.files."result.json"]
+json-open = """
+{
+  "summary": {"pass": 0, "fail": 0, "error": 3},
+  "scenarios": [
+    {"status": "error", "message": "Unknown step key(s): exit_code"},
+    {"status": "error", "message": "Unknown expected key(s): stdot"},
+    {"status": "error", "message": "Unknown file assertion (hi.txt) key(s): contnet"}
+  ]
+}
+"""

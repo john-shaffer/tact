@@ -17,8 +17,26 @@
   "Seconds a step may run before it is killed."
   600)
 
+(def ^:private step-keys #{"run" "stdin" "timeout" "expected"})
+
+(def ^:private expected-keys #{"exit-code" "files" "stdout" "stderr"})
+
+(def ^:private file-spec-keys #{"content" "file" "json" "json-open"})
+
 (defn- scenario-error [msg]
   (throw (ex-info msg {:type ::scenario-error})))
+
+(defn- check-keys! [what allowed m]
+  (when-let [unknown (seq (remove allowed (keys m)))]
+    (scenario-error (str "Unknown " what " key(s): " (str/join ", " (sort unknown))))))
+
+(defn- validate-scenario! [scenario]
+  (doseq [step (get scenario "steps")
+          :let [expected (get step "expected")]]
+    (check-keys! "step" step-keys step)
+    (check-keys! "expected" expected-keys expected)
+    (doseq [[path spec] (get expected "files")]
+      (check-keys! (str "file assertion (" path ")") file-spec-keys spec))))
 
 (defn- load-scenario [path]
   (-> path slurp toml/read-string))
@@ -212,6 +230,7 @@
     (let [scenario (load-scenario path)
           base-dir (fs/parent (fs/canonicalize path))]
       (println "Testing:" (get scenario "name"))
+      (validate-scenario! scenario)
       (if dir
         (let [work-dir (fs/path dir)]
           (fs/create-dirs work-dir)
