@@ -42,7 +42,7 @@ test:
 # Run scenarios against dev jar
 test-jar *paths="scenarios":
     #!/usr/bin/env bash
-    PATH="$(just _jar-app-path)/bin:$PATH" tact {{ paths }}
+    PATH="$(just _jar-app-path)/bin:$PATH" tact --jobs "$(nproc)" {{ paths }}
 
 # Update dependencies
 update: && update-deps-lock

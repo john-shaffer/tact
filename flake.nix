@@ -72,8 +72,10 @@
             pkgs.runCommand "tact-scenario-report" { buildInputs = [ tactBin ] ++ scenarioCheckInputs; }
               ''
                 mkdir -p $out
+                jobs=''${NIX_BUILD_CORES:-1}
+                [ "$jobs" -gt 0 ] || jobs=$(nproc)
                 status=0
-                tact --output $out/report.json ${tactScenarios}/scenarios > $out/log 2>&1 || status=$?
+                tact --jobs "$jobs" --output $out/report.json ${tactScenarios}/scenarios > $out/log 2>&1 || status=$?
                 echo "$status" > $out/exit-status
               '';
         in
