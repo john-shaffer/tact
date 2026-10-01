@@ -7,10 +7,10 @@
    [clojure.string :as str]
    [toml-clj.core :as toml])
   (:import
-   (java.io ByteArrayOutputStream InputStream)
+   (java.io ByteArrayOutputStream InputStream StringWriter)
    (java.lang Process ProcessHandle)
    (java.nio.file Path)
-   (java.util.concurrent TimeUnit)
+   (java.util.concurrent Callable ExecutorService Executors Future TimeUnit)
    (java.util.stream Stream)))
 
 (def default-timeout
@@ -407,8 +407,34 @@
               [path]))
           paths))
 
-(defn run-scenarios! [paths & {:keys [output dir timeout]}]
-  (let [results (mapv #(run-scenario! % :dir dir :timeout timeout) (expand-paths paths))
+(defn- run-parallel
+  "Calls each of tasks on a pool of jobs threads. Output of each call is
+  buffered and printed in order, so scenarios don't interleave."
+  [jobs tasks]
+  (let [pool    (Executors/newFixedThreadPool jobs)
+        futures (mapv (fn [f]
+                        (.submit ^ExecutorService pool
+                                 ^Callable (fn []
+                                             (let [out    (StringWriter.)
+                                                   result (binding [*out* out] (f))]
+                                               [result (str out)]))))
+                      tasks)]
+    (try
+      (mapv (fn [^Future fut]
+              (let [[result output] (.get fut)]
+                (print output)
+                (flush)
+                result))
+            futures)
+      (finally
+        (.shutdown pool)))))
+
+(defn run-scenarios! [paths & {:keys [output dir jobs timeout] :or {jobs 1}}]
+  (let [runs    (map (fn [path] #(run-scenario! path :dir dir :timeout timeout))
+                     (expand-paths paths))
+        results (if (> jobs 1)
+                  (run-parallel jobs runs)
+                  (mapv #(%) runs))
         passed  (count (filter #(= "pass" (:status %)) results))
         total   (count results)]
     (println (str passed "/" total " scenarios passed"))

@@ -1,0 +1,35 @@
+name = "--jobs runs scenarios in parallel"
+
+[setup.files."a.toml"]
+content = """
+name = "A waits for B"
+
+[[steps]]
+run = 'touch "$RDV/a"; for i in $(seq 100); do [ -e "$RDV/b" ] && exit 0; sleep 0.1; done; exit 1'
+"""
+
+[setup.files."b.toml"]
+content = """
+name = "B waits for A"
+
+[[steps]]
+run = 'touch "$RDV/b"; for i in $(seq 100); do [ -e "$RDV/a" ] && exit 0; sleep 0.1; done; exit 1'
+"""
+
+[[steps]]
+run = "tact -j 2 a.toml b.toml"
+timeout = 60
+
+[steps.env]
+RDV = "${TACT_WORK_DIR}"
+
+[steps.expected]
+exit-code = 0
+stdout-matches = '(?s)\[a.toml\]\nTesting: A waits for B\n.*\[b.toml\]\nTesting: B waits for A\n.*^2/2 scenarios passed$'
+
+[[steps]]
+run = "tact -j 2 --dir work a.toml"
+
+[steps.expected]
+exit-code = 1
+stdout = "--dir cannot be combined with --jobs greater than 1\n"

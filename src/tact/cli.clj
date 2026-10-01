@@ -10,6 +10,10 @@
 (def ^:private cli-options
   [["-d" "--dir DIR" "Directory to set up and run scenarios in (default: temp dir)"]
    ["-h" "--help" "Show help"]
+   ["-j" "--jobs N" "Run N scenarios in parallel"
+    :default 1
+    :parse-fn parse-long
+    :validate [#(and % (pos? %)) "Must be a positive integer"]]
    ["-o" "--output FILE" "Write JSON summary to FILE"]
    ["-t" "--timeout SECONDS" "Default step timeout, overridable per scenario or step"
     :default runner/default-timeout
@@ -35,6 +39,9 @@
       (:version options)
       (exit 0 (str "tact " version))
 
+      (and (:dir options) (> (:jobs options) 1))
+      (exit 1 "--dir cannot be combined with --jobs greater than 1")
+
       (empty? arguments)
       (exit 1 (str "Usage: tact [options] <scenario.toml>...\n\nOptions:\n" summary))
 
@@ -42,4 +49,5 @@
       (runner/run-scenarios! arguments
                              :output (:output options)
                              :dir (:dir options)
+                             :jobs (:jobs options)
                              :timeout (:timeout options)))))
