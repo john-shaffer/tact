@@ -1,0 +1,32 @@
+name = "Failing steps show their command and output"
+
+[setup.files."inner.toml"]
+content = '''
+name = "Inner with a file content failure"
+
+[[steps]]
+run = "echo printed-out; echo printed-err >&2; echo actual > f.txt"
+
+[steps.expected.files."f.txt"]
+content = "expected\n"
+
+[[steps]]
+run = "seq 100 | sed 's/^/line /' >&2; exit 2"
+'''
+
+[[steps]]
+run = "tact inner.toml"
+
+[steps.expected]
+exit-code = 1
+stdout-contains = [
+  "step 1 failed (exit 0)",
+  "echo printed-out; echo printed-err >&2; echo actual > f.txt",
+  "printed-out",
+  "printed-err",
+  "step 2 failed (exit 2)",
+  "stdout: (empty)",
+  "stderr (last 40 of 100 lines):",
+]
+stdout-matches = ["^      line 61$", "^      line 100$"]
+stdout-not-contains = "line 60\n"

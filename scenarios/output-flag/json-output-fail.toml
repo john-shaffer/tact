@@ -22,6 +22,7 @@ exit-code = 1
 json-open = """
 {
   "summary": {"pass": 0, "fail": 1},
-  "scenarios": [{"name": "Failing inner scenario", "status": "fail", "checks": [{"check": "stdout", "status": "fail"}]}]
+  "scenarios": [{"name": "Failing inner scenario", "status": "fail", "checks": [{"check": "stdout", "step": 1, "status": "fail"}],
+                 "steps": [{"step": 1, "run": "echo wrong", "exit": 0, "stdout": "wrong\\n"}]}]
 }
 """

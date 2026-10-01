@@ -27,6 +27,8 @@
 (def ^:private file-spec-keys
   #{"content" "file" "json" "json-open" "exists" "contains" "not-contains" "matches"})
 
+(def ^:private output-tail-lines 40)
+
 (defn- scenario-error [msg]
   (throw (ex-info msg {:type ::scenario-error})))
 
@@ -201,8 +203,7 @@
       (assoc check-base :type :pass :check k)
       (assoc check-base :type :fail :check k
              :message (str label " " message)
-             :expected expected
-             :actual text))))
+             :expected expected))))
 
 (defn- check-file [work-dir base-dir path spec]
   (let [full-path (work-path work-dir path)
@@ -238,20 +239,19 @@
           (conj (compare-json path "json-open" actual-str (parse-json-spec (get spec "json-open")) json-open-match?))
 
           :always
-          (into (text-checks {:path path} path actual-str spec "")))))))
+          (into (map #(cond-> % (= :fail (:type %)) (assoc :actual actual-str)))
+                (text-checks {:path path} path actual-str spec "")))))))
 
 (defn- check-expected [work-dir base-dir result {:strs [expected]}]
   (if (:timed-out result)
     [{:type :fail :check "timeout"
-      :message (str "step timed out after " (:timeout result) "s")
-      :stderr (:stderr result)}]
+      :message (str "step timed out after " (:timeout result) "s")}]
     (let [{:strs [files stdout stderr exit-code] :or {exit-code 0}} expected
           file-checks (into [] (mapcat (fn [[path spec]] (check-file work-dir base-dir path spec))) files)
           exit-check  (if (= exit-code (:exit result))
                         {:type :pass :check "exit"}
                         {:type :fail :check "exit" :message "exit code mismatch"
-                         :expected exit-code :actual (:exit result)
-                         :stderr (:stderr result)})]
+                         :expected exit-code :actual (:exit result)})]
       (cond-> (conj file-checks exit-check)
         (contains? expected "stdout")
         (conj (if (= stdout (:stdout result))
@@ -274,30 +274,59 @@
        (map #(str indent %))
        (str/join "\n")))
 
+(defn- fail? [check]
+  (= :fail (:type check)))
+
 (defn- print-diff [expected actual]
   (if (some #(str/includes? (str %) "\n") [expected actual])
     (do
       (println "    expected:")
       (println (format-multiline (str expected) "      "))
-      (println "    actual:")
-      (println (format-multiline (str actual) "      ")))
+      (when (some? actual)
+        (println "    actual:")
+        (println (format-multiline (str actual) "      "))))
     (do
       (println (str "    expected: " (pr-str expected)))
-      (println (str "    actual:   " (pr-str actual))))))
+      (when (some? actual)
+        (println (str "    actual:   " (pr-str actual)))))))
 
 (defn- print-check [check]
   (let [label (if (:path check)
                 (str (:path check) " (" (:check check) ")")
                 (:check check))]
-    (if (= :pass (:type check))
-      (println "  ✓" label)
+    (if (fail? check)
       (do
         (println "  ✗" label "-" (:message check))
         (when (contains? check :expected)
-          (print-diff (:expected check) (:actual check)))
-        (when (seq (:stderr check))
-          (println "    stderr:")
-          (println (format-multiline (:stderr check) "      ")))))))
+          (print-diff (:expected check) (:actual check))))
+      (println "  ✓" label))))
+
+(defn- print-output [label s]
+  (let [lines (str/split-lines s)
+        n     (count lines)]
+    (cond
+      (str/blank? s)
+      (println (str "    " label ": (empty)"))
+
+      (> n output-tail-lines)
+      (do
+        (println (str "    " label " (last " output-tail-lines " of " n " lines):"))
+        (println (format-multiline (str/join "\n" (take-last output-tail-lines lines)) "      ")))
+
+      :else
+      (do
+        (println (str "    " label ":"))
+        (println (format-multiline s "      "))))))
+
+(defn- print-step-failure [{:keys [step run result]}]
+  (println (str "  step " step " failed"
+                (if (:timed-out result)
+                  " (timed out)"
+                  (str " (exit " (:exit result) ")"))))
+  (println "    command:")
+  (println (format-multiline run "      "))
+  (print-output "stdout" (:stdout result))
+  (print-output "stderr" (:stderr result)))
 
 (defn- run-scenario-in-dir! [path scenario base-dir work-dir default-timeout]
   (when-let [files (get-in scenario ["setup" "files"])]
@@ -307,28 +336,35 @@
         env      (expand-env base-env (get scenario "env"))
         timeout  (get scenario "timeout" default-timeout)
         step-results
-        (mapv
-          (fn [step]
-            (let [step-env (merge env
-                                  (expand-env (merge base-env env) (get step "env"))
-                                  {"TACT_WORK_DIR" (str work-dir)})
-                  result   (run-step! work-dir step-env (step-timeout (get step "timeout" timeout)) step)
-                  checks   (check-expected work-dir base-dir result step)]
-              ;; Print as each step finishes, so long scenarios show progress
-              (run! print-check checks)
-              {:result result
-               :checks checks}))
-          (get scenario "steps"))
-        all-checks (mapcat :checks step-results)
-        pass?      (every? #(= :pass (:type %)) all-checks)]
+        (into []
+              (map-indexed
+                (fn [i step]
+                  (let [step-env    (merge env
+                                           (expand-env (merge base-env env) (get step "env"))
+                                           {"TACT_WORK_DIR" (str work-dir)})
+                        result      (run-step! work-dir step-env (step-timeout (get step "timeout" timeout)) step)
+                        checks      (mapv #(assoc % :step (inc i))
+                                          (check-expected work-dir base-dir result step))
+                        step-result {:step (inc i) :run (get step "run") :result result :checks checks}]
+                    ;; Print as each step finishes, so long scenarios show progress
+                    (run! print-check checks)
+                    (when (some fail? checks)
+                      (print-step-failure step-result))
+                    step-result)))
+              (get scenario "steps"))
+        failed-steps (filterv #(some fail? (:checks %)) step-results)]
     (println)
     {:name   (get scenario "name")
      :path   (str path)
-     :status (if pass? "pass" "fail")
-     :checks (->> all-checks
-                  (remove #(= :pass (:type %)))
-                  (mapv #(-> (dissoc % :type :stderr)
-                             (assoc :status "fail"))))}))
+     :status (if (seq failed-steps) "fail" "pass")
+     :checks (->> (mapcat :checks step-results)
+                  (filter fail?)
+                  (mapv #(-> (dissoc % :type)
+                             (assoc :status "fail"))))
+     :steps  (mapv (fn [{:keys [step run result]}]
+                     (-> (select-keys result [:exit :stdout :stderr :timed-out])
+                         (assoc :step step :run run)))
+                   failed-steps)}))
 
 (defn run-scenario! [path & {:keys [dir timeout] :or {timeout default-timeout}}]
   (println (str "[" path "]"))
