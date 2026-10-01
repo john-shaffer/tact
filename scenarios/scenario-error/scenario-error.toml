@@ -1,0 +1,26 @@
+name = "A scenario that cannot run is an error and the run continues"
+
+[setup.files."bad.toml"]
+content = "not = valid = toml"
+
+[setup.files."good.toml"]
+content = """
+name = "Good scenario"
+
+[[steps]]
+run = "true"
+"""
+
+[[steps]]
+run = "tact --output result.json bad.toml good.toml"
+
+[steps.expected]
+exit-code = 1
+
+[steps.expected.files."result.json"]
+json-open = """
+{
+  "summary": {"pass": 1, "fail": 0, "error": 1},
+  "scenarios": [{"path": "bad.toml", "status": "error"}, {"path": "good.toml", "status": "pass"}]
+}
+"""

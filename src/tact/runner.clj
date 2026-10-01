@@ -149,16 +149,25 @@
                              (assoc :status "fail"))))}))
 
 (defn run-scenario! [path & {:keys [dir]}]
-  (let [scenario  (load-scenario path)
-        base-dir  (fs/parent (fs/canonicalize path))]
-    (println (str "[" path "]"))
-    (println "Testing:" (get scenario "name"))
-    (if dir
-      (let [work-dir (fs/path dir)]
-        (fs/create-dirs work-dir)
-        (run-scenario-in-dir! path scenario base-dir work-dir))
-      (fs/with-temp-dir [work-dir {:prefix "tact-"}]
-        (run-scenario-in-dir! path scenario base-dir work-dir)))))
+  (println (str "[" path "]"))
+  (try
+    (let [scenario (load-scenario path)
+          base-dir (fs/parent (fs/canonicalize path))]
+      (println "Testing:" (get scenario "name"))
+      (if dir
+        (let [work-dir (fs/path dir)]
+          (fs/create-dirs work-dir)
+          (run-scenario-in-dir! path scenario base-dir work-dir))
+        (fs/with-temp-dir [work-dir {:prefix "tact-"}]
+          (run-scenario-in-dir! path scenario base-dir work-dir))))
+    (catch Exception e
+      (let [message (or (ex-message e) (str e))]
+        (println "  ! error -" message)
+        (println)
+        {:path    (str path)
+         :status  "error"
+         :message message
+         :checks  []}))))
 
 (defn- write-json! [output-file results]
   (let [by-status (frequencies (map :status results))
