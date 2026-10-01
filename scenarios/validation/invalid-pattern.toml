@@ -1,0 +1,37 @@
+name = "Invalid assertion values are errors"
+
+[setup.files."pattern.toml"]
+content = """
+name = "Invalid pattern"
+
+[[steps]]
+run = "echo ran > ran.txt"
+
+[steps.expected]
+stdout-matches = "("
+"""
+
+[setup.files."type.toml"]
+content = """
+name = "Non-string value"
+
+[[steps]]
+run = "echo ran > ran.txt"
+
+[steps.expected]
+stderr-contains = ["ok", 1]
+"""
+
+[[steps]]
+run = "tact --dir work --output result.json pattern.toml type.toml; test $? = 1 && test ! -e work/ran.txt"
+
+[steps.expected.files."result.json"]
+json-open = """
+{
+  "summary": {"pass": 0, "fail": 0, "error": 2},
+  "scenarios": [
+    {"status": "error", "message": "Invalid stdout-matches pattern \\\"(\\\": Unclosed group"},
+    {"status": "error", "message": "stderr-contains must be a string or an array of strings: 1"}
+  ]
+}
+"""

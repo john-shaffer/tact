@@ -1,0 +1,31 @@
+name = "stdout and stderr partial match failures are detected"
+
+[setup.files."inner.toml"]
+content = """
+name = "Inner with partial match failures"
+
+[[steps]]
+run = "echo hello; echo oops >&2"
+
+[steps.expected]
+stdout-contains = ["hello", "goodbye"]
+stdout-matches = "^hell$"
+stderr-not-contains = "oops"
+"""
+
+[[steps]]
+run = "tact --output result.json inner.toml"
+
+[steps.expected]
+exit-code = 1
+
+[steps.expected.files."result.json"]
+json-open = """
+{
+  "scenarios": [{"checks": [
+    {"check": "stdout-contains", "message": "stdout does not contain expected text", "expected": "goodbye"},
+    {"check": "stdout-matches", "message": "stdout does not match pattern", "expected": "^hell$"},
+    {"check": "stderr-not-contains", "message": "stderr contains unexpected text", "expected": "oops"}
+  ]}]
+}
+"""

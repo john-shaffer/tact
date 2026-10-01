@@ -1,0 +1,13 @@
+name = "stdout and stderr partial matching"
+
+[[steps]]
+run = '''printf 'one\ntwo\nthree\n'; echo 'warning: disk almost full' >&2; exit 3'''
+
+[steps.expected]
+exit-code = 3
+stdout-contains = ["two", "thr"]
+stdout-not-contains = "four"
+stdout-matches = ["^two$", '(?s)one.*three']
+stderr-contains = "disk"
+stderr-not-contains = "error"
+stderr-matches = '^warning: \w+ almost full$'

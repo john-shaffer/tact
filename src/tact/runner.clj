@@ -19,7 +19,10 @@
 
 (def ^:private step-keys #{"run" "stdin" "timeout" "expected"})
 
-(def ^:private expected-keys #{"exit-code" "files" "stdout" "stderr"})
+(def ^:private expected-keys
+  #{"exit-code" "files"
+    "stdout" "stdout-contains" "stdout-not-contains" "stdout-matches"
+    "stderr" "stderr-contains" "stderr-not-contains" "stderr-matches"})
 
 (def ^:private file-spec-keys #{"content" "file" "json" "json-open"})
 
@@ -30,11 +33,29 @@
   (when-let [unknown (seq (remove allowed (keys m)))]
     (scenario-error (str "Unknown " what " key(s): " (str/join ", " (sort unknown))))))
 
+(defn- text-values [v]
+  (if (sequential? v) v [v]))
+
+(defn- check-text-values! [spec prefix]
+  (doseq [kind ["contains" "not-contains" "matches"]
+          :let [k (str prefix kind)]
+          :when (contains? spec k)
+          v (text-values (get spec k))]
+    (when-not (string? v)
+      (scenario-error (str k " must be a string or an array of strings: " (pr-str v))))
+    (when (= "matches" kind)
+      (try
+        (re-pattern v)
+        (catch java.util.regex.PatternSyntaxException e
+          (scenario-error (str "Invalid " k " pattern " (pr-str v) ": " (.getDescription e))))))))
+
 (defn- validate-scenario! [scenario]
   (doseq [step (get scenario "steps")
           :let [expected (get step "expected")]]
     (check-keys! "step" step-keys step)
     (check-keys! "expected" expected-keys expected)
+    (check-text-values! expected "stdout-")
+    (check-text-values! expected "stderr-")
     (doseq [[path spec] (get expected "files")]
       (check-keys! (str "file assertion (" path ")") file-spec-keys spec))))
 
@@ -129,6 +150,33 @@
 (defn- parse-json-spec [v]
   (if (string? v) (json/read-str v) v))
 
+(def ^:private text-assertions
+  [["contains"
+    "does not contain expected text"
+    str/includes?]
+   ["not-contains"
+    "contains unexpected text"
+    (complement str/includes?)]
+   ["matches"
+    "does not match pattern"
+    #(boolean (re-find (re-pattern (str "(?m)" %2)) %1))]])
+
+(defn- text-checks
+  "Checks the contains, not-contains and matches assertions in spec against
+  text. prefix selects the keys, e.g. \"stdout-\" for stdout-contains. Each
+  value is a string or an array of strings, checked by validate-scenario!."
+  [check-base label text spec prefix]
+  (for [[kind message pass?] text-assertions
+        :let [k (str prefix kind)]
+        :when (contains? spec k)
+        expected (text-values (get spec k))]
+    (if (pass? text expected)
+      (assoc check-base :type :pass :check k)
+      (assoc check-base :type :fail :check k
+             :message (str label " " message)
+             :expected expected
+             :actual text))))
+
 (defn- check-file [work-dir base-dir path spec]
   (let [full-path (work-path work-dir path)]
     (if-not (fs/exists? full-path)
@@ -170,7 +218,11 @@
         (conj (if (= stderr (:stderr result))
                 {:type :pass :check "stderr"}
                 {:type :fail :check "stderr" :message "stderr mismatch"
-                 :expected stderr :actual (:stderr result)}))))))
+                 :expected stderr :actual (:stderr result)}))
+
+        :always
+        (-> (into (text-checks {} "stdout" (:stdout result) expected "stdout-"))
+            (into (text-checks {} "stderr" (:stderr result) expected "stderr-")))))))
 
 (defn- format-multiline [s indent]
   (->> (str/split-lines s)
