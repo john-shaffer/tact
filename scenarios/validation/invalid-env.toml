@@ -1,0 +1,38 @@
+name = "Invalid env tables are errors"
+
+[setup.files."not-table.toml"]
+content = """
+name = "env is not a table"
+env = "FOO=bar"
+
+[[steps]]
+run = "true"
+"""
+
+[setup.files."nested.toml"]
+content = """
+name = "env value is a table"
+
+[[steps]]
+run = "true"
+
+[steps.env.FOO]
+bar = 1
+"""
+
+[[steps]]
+run = "tact --output result.json not-table.toml nested.toml"
+
+[steps.expected]
+exit-code = 1
+
+[steps.expected.files."result.json"]
+json-open = """
+{
+  "summary": {"pass": 0, "fail": 0, "error": 2},
+  "scenarios": [
+    {"status": "error", "message": "env must be a table"},
+    {"status": "error", "message": "env value must be a string, number or boolean: FOO"}
+  ]
+}
+"""

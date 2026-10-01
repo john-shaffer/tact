@@ -17,7 +17,7 @@
   "Seconds a step may run before it is killed."
   600)
 
-(def ^:private step-keys #{"run" "stdin" "timeout" "expected"})
+(def ^:private step-keys #{"run" "stdin" "env" "timeout" "expected"})
 
 (def ^:private expected-keys
   #{"exit-code" "files"
@@ -50,10 +50,20 @@
         (catch java.util.regex.PatternSyntaxException e
           (scenario-error (str "Invalid " k " pattern " (pr-str v) ": " (.getDescription e))))))))
 
+(defn- check-env! [env]
+  (when (some? env)
+    (when-not (map? env)
+      (scenario-error "env must be a table"))
+    (doseq [[k v] env]
+      (when-not (or (string? v) (number? v) (boolean? v))
+        (scenario-error (str "env value must be a string, number or boolean: " k))))))
+
 (defn- validate-scenario! [scenario]
+  (check-env! (get scenario "env"))
   (doseq [step (get scenario "steps")
           :let [expected (get step "expected")]]
     (check-keys! "step" step-keys step)
+    (check-env! (get step "env"))
     (check-keys! "expected" expected-keys expected)
     (check-text-values! expected "stdout-")
     (check-text-values! expected "stderr-")
@@ -88,6 +98,16 @@
       (fs/create-dirs (fs/parent target))
       (spit (str target) (resolve-content base-dir spec)))))
 
+(defn- expand-env
+  "Expands ${NAME} references in env values from base. Unset names expand to
+  the empty string, as in the shell."
+  [base env]
+  (update-vals env
+               (fn [v]
+                 (str/replace (str v)
+                              #"\$\{([A-Za-z_][A-Za-z0-9_]*)\}"
+                              #(get base (second %) "")))))
+
 (defn- step-timeout [timeout]
   (if (and (number? timeout) (pos? timeout))
     timeout
@@ -115,8 +135,9 @@
     (.destroyForcibly proc)
     (run! #(.destroyForcibly ^ProcessHandle %) descendants)))
 
-(defn- run-step! [work-dir timeout {:strs [run stdin]}]
-  (let [proc   (p/start {:dir (str work-dir) :err :pipe :in :pipe :out :pipe} "bash" "-c" run)
+(defn- run-step! [work-dir env timeout {:strs [run stdin]}]
+  (let [proc   (p/start {:dir (str work-dir) :env env :err :pipe :in :pipe :out :pipe}
+                        "bash" "-c" run)
         stdout (drain (p/stdout proc))
         stderr (drain (p/stderr proc))]
     ;; Always close stdin, so commands that read it see EOF instead of waiting forever
@@ -281,11 +302,17 @@
 (defn- run-scenario-in-dir! [path scenario base-dir work-dir default-timeout]
   (when-let [files (get-in scenario ["setup" "files"])]
     (setup-files! work-dir base-dir files))
-  (let [timeout (get scenario "timeout" default-timeout)
+  (let [work-dir (fs/absolutize work-dir)
+        base-env (assoc (into {} (System/getenv)) "TACT_WORK_DIR" (str work-dir))
+        env      (expand-env base-env (get scenario "env"))
+        timeout  (get scenario "timeout" default-timeout)
         step-results
         (mapv
           (fn [step]
-            (let [result (run-step! work-dir (step-timeout (get step "timeout" timeout)) step)]
+            (let [step-env (merge env
+                                  (expand-env (merge base-env env) (get step "env"))
+                                  {"TACT_WORK_DIR" (str work-dir)})
+                  result   (run-step! work-dir step-env (step-timeout (get step "timeout" timeout)) step)]
               {:result result
                :checks (check-expected work-dir base-dir result step)}))
           (get scenario "steps"))
