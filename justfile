@@ -34,12 +34,15 @@ run *args:
 # Run all scenarios against native-image binary
 test:
     #!/usr/bin/env bash
-    OUT=$(nix build .#checks."$(just _nix-system)".scenarios --print-out-paths)
+    set -euo pipefail
+    out=$(nix build .#scenario-report --print-out-paths)
+    cat "$out/log"
+    exit "$(cat "$out/exit-status")"
 
-# Run all scenarios against dev jar
-test-jar:
+# Run scenarios against dev jar
+test-jar *paths="scenarios":
     #!/usr/bin/env bash
-    PATH="$(just _jar-app-path)/bin:$PATH" tact scenarios
+    PATH="$(just _jar-app-path)/bin:$PATH" tact {{ paths }}
 
 # Update dependencies
 update: && update-deps-lock

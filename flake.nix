@@ -67,14 +67,24 @@
             jq
             jsonfmt
           ];
+          # Always succeeds, so Nix caches the result of a failing run too
+          scenarioReport =
+            pkgs.runCommand "tact-scenario-report" { buildInputs = [ tactBin ] ++ scenarioCheckInputs; }
+              ''
+                mkdir -p $out
+                status=0
+                tact --output $out/report.json ${tactScenarios}/scenarios > $out/log 2>&1 || status=$?
+                echo "$status" > $out/exit-status
+              '';
         in
         {
-          checks.scenarios =
-            pkgs.runCommand "tact-check-scenarios" { buildInputs = [ tactBin ] ++ scenarioCheckInputs; }
-              ''
-                ${tactBin}/bin/tact ${tactScenarios}/scenarios
-                touch $out
-              '';
+          checks.scenarios = pkgs.runCommand "tact-check-scenarios" { } ''
+            if [ "$(cat ${scenarioReport}/exit-status)" != 0 ]; then
+              cat ${scenarioReport}/log >&2
+              exit 1
+            fi
+            touch $out
+          '';
 
           devShells.default = pkgs.mkShell {
             buildInputs =
@@ -83,7 +93,8 @@
                 clojure
                 deps-lock
                 just
-                sand.packages.${system}.default
+                nixfmt
+                taplo
               ]
               ++ scenarioCheckInputs;
             shellHook = ''
@@ -92,8 +103,10 @@
               just --list
             '';
           };
+
           packages.default = tactBin;
           packages.jar-app = tactJarApp;
+          packages.scenario-report = scenarioReport;
         }
       );
     in
