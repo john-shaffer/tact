@@ -138,11 +138,11 @@
          (every? true? (map json-open-match? expected actual)))
     :else (= expected actual)))
 
-(defn- compare-json [path actual-str expected-parsed match-fn]
+(defn- compare-json [path check actual-str expected-parsed match-fn]
   (let [actual-parsed (json/read-str actual-str)]
     (if (match-fn expected-parsed actual-parsed)
-      {:type :pass :path path}
-      {:type :fail :path path
+      {:type :pass :path path :check check}
+      {:type :fail :path path :check check
        :message  (str "JSON content mismatch: " path)
        :expected (str (json/write-str expected-parsed :indent true) "\n")
        :actual   (str (json/write-str actual-parsed :indent true) "\n")})))
@@ -179,21 +179,30 @@
 
 (defn- check-file [work-dir base-dir path spec]
   (let [full-path (work-path work-dir path)]
-    (if-not (fs/exists? full-path)
-      {:type :fail :path path :message (str "File does not exist: " path)}
-      (let [actual-str (slurp (str full-path))
-            open       (get spec "json-open")
-            exact      (get spec "json")]
-        (cond
-          open  (compare-json path actual-str (parse-json-spec open) json-open-match?)
-          exact (compare-json path actual-str (parse-json-spec exact) =)
-          :else (let [expected (resolve-content base-dir spec)]
+    (cond
+      (not (fs/exists? full-path))
+      [{:type :fail :path path :check "exists" :message (str "File does not exist: " path)}]
+
+      (empty? spec)
+      [{:type :pass :path path :check "exists"}]
+
+      :else
+      (let [actual-str (slurp (str full-path))]
+        (cond-> []
+          (some #(contains? spec %) ["content" "file"])
+          (conj (let [expected (resolve-content base-dir spec)]
                   (if (= actual-str expected)
-                    {:type :pass :path path}
-                    {:type :fail :path path
+                    {:type :pass :path path :check "content"}
+                    {:type :fail :path path :check "content"
                      :message  (str "File content mismatch: " path)
                      :expected expected
-                     :actual   actual-str})))))))
+                     :actual   actual-str})))
+
+          (contains? spec "json")
+          (conj (compare-json path "json" actual-str (parse-json-spec (get spec "json")) =))
+
+          (contains? spec "json-open")
+          (conj (compare-json path "json-open" actual-str (parse-json-spec (get spec "json-open")) json-open-match?)))))))
 
 (defn- check-expected [work-dir base-dir result {:strs [expected]}]
   (if (:timed-out result)
@@ -201,7 +210,7 @@
       :message (str "step timed out after " (:timeout result) "s")
       :stderr (:stderr result)}]
     (let [{:strs [files stdout stderr exit-code] :or {exit-code 0}} expected
-          file-checks (mapv (fn [[path spec]] (check-file work-dir base-dir path spec)) files)
+          file-checks (into [] (mapcat (fn [[path spec]] (check-file work-dir base-dir path spec))) files)
           exit-check  (if (= exit-code (:exit result))
                         {:type :pass :check "exit"}
                         {:type :fail :check "exit" :message "exit code mismatch"
@@ -241,7 +250,9 @@
       (println (str "    actual:   " (pr-str actual))))))
 
 (defn- print-check [check]
-  (let [label (or (:path check) (:check check) "check")]
+  (let [label (if (:path check)
+                (str (:path check) " (" (:check check) ")")
+                (:check check))]
     (if (= :pass (:type check))
       (println "  ✓" label)
       (do

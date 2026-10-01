@@ -1,0 +1,27 @@
+name = "Every assertion given for a file is checked"
+
+[setup.files."inner.toml"]
+content = """
+name = "Inner with a passing json-open and failing content"
+
+[setup.files."data.json"]
+content = '{"a":1}'
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."data.json"]
+json-open = '{"a":1}'
+content = "something else"
+"""
+
+[[steps]]
+run = "tact --output result.json inner.toml"
+
+[steps.expected]
+exit-code = 1
+
+[steps.expected.files."result.json"]
+json-open = """
+{"scenarios": [{"checks": [{"path": "data.json", "check": "content", "message": "File content mismatch: data.json"}]}]}
+"""
