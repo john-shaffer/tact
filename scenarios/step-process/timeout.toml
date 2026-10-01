@@ -27,13 +27,25 @@ run = "sleep 30; true"
 """
 
 [[steps]]
-run = "tact step-timeout.toml > out.txt; test $? = 1 && grep -qF '✗ timeout - step timed out after 1s' out.txt"
+run = "tact step-timeout.toml"
 timeout = 20
 
-[[steps]]
-run = "tact scenario-timeout.toml > out.txt; test $? = 1 && grep -qF '✗ timeout - step timed out after 1s' out.txt"
-timeout = 20
+[steps.expected]
+exit-code = 1
+stdout-contains = "✗ timeout - step timed out after 1s"
 
 [[steps]]
-run = "tact --timeout 1 default-timeout.toml > out.txt; test $? = 1 && grep -qF '✗ timeout - step timed out after 1s' out.txt"
+run = "tact scenario-timeout.toml"
 timeout = 20
+
+[steps.expected]
+exit-code = 1
+stdout-contains = "✗ timeout - step timed out after 1s"
+
+[[steps]]
+run = "tact --timeout 1 default-timeout.toml"
+timeout = 20
+
+[steps.expected]
+exit-code = 1
+stdout-contains = "✗ timeout - step timed out after 1s"

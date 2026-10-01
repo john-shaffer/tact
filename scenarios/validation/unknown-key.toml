@@ -35,7 +35,13 @@ contnet = "hi\\n"
 """
 
 [[steps]]
-run = "tact --dir work --output result.json step.toml expected.toml file.toml; test $? = 1 && test ! -e work/ran.txt"
+run = "tact --dir work --output result.json step.toml expected.toml file.toml"
+
+[steps.expected]
+exit-code = 1
+
+[steps.expected.files."work/ran.txt"]
+exists = false
 
 [steps.expected.files."result.json"]
 json-open = """

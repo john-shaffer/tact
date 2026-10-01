@@ -23,7 +23,13 @@ stderr-contains = ["ok", 1]
 """
 
 [[steps]]
-run = "tact --dir work --output result.json pattern.toml type.toml; test $? = 1 && test ! -e work/ran.txt"
+run = "tact --dir work --output result.json pattern.toml type.toml"
+
+[steps.expected]
+exit-code = 1
+
+[steps.expected.files."work/ran.txt"]
+exists = false
 
 [steps.expected.files."result.json"]
 json-open = """

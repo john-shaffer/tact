@@ -12,7 +12,13 @@ run = "true"
 """
 
 [[steps]]
-run = "tact --dir work --output result.json inner.toml; test $? = 1 && test ! -e escape.txt"
+run = "tact --dir work --output result.json inner.toml"
+
+[steps.expected]
+exit-code = 1
+
+[steps.expected.files."escape.txt"]
+exists = false
 
 [steps.expected.files."result.json"]
 json-open = """
