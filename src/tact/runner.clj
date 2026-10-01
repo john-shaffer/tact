@@ -29,9 +29,12 @@
       (future
         (with-open [out (io/output-stream (p/stdin proc))]
           (io/copy (.getBytes ^String stdin "UTF-8") out))))
-    {:stdout (slurp (p/stdout proc))
-     :stderr (slurp (p/stderr proc))
-     :exit   @(p/exit-ref proc)}))
+    ;; Read both streams concurrently, so neither pipe can fill up and block the step
+    (let [stdout (future (slurp (p/stdout proc)))
+          stderr (future (slurp (p/stderr proc)))]
+      {:stdout @stdout
+       :stderr @stderr
+       :exit   @(p/exit-ref proc)})))
 
 (defn- json-open-match? [expected actual]
   (cond

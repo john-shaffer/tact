@@ -1,0 +1,7 @@
+name = "Large stderr output does not block the step"
+
+[[steps]]
+run = "head -c 1000000 /dev/zero >&2; echo done"
+
+[steps.expected]
+stdout = "done\n"
