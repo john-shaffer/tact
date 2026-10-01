@@ -1,0 +1,35 @@
+name = "File existence and partial content failures are detected"
+
+[setup.files."inner.toml"]
+content = """
+name = "Inner with file match failures"
+
+[setup.files."data.txt"]
+content = "status: outdated"
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."data.txt"]
+not-contains = "outdated"
+
+[steps.expected.files."missing.txt"]
+contains = "anything"
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."data.txt"]
+exists = false
+"""
+
+[[steps]]
+run = "tact inner.toml"
+
+[steps.expected]
+exit-code = 1
+stdout-contains = [
+  "✗ data.txt (not-contains) - data.txt contains unexpected text",
+  "✗ missing.txt (exists) - File does not exist: missing.txt",
+  "✗ data.txt (exists) - File exists: data.txt",
+]

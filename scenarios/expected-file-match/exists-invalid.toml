@@ -1,0 +1,38 @@
+name = "Invalid exists assertions are errors"
+
+[setup.files."inner.toml"]
+content = """
+name = "Inner with a contradictory file assertion"
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."data.txt"]
+exists = false
+contains = "x"
+"""
+
+[[steps]]
+run = "tact inner.toml"
+
+[steps.expected]
+exit-code = 1
+stdout-contains = "! error - exists = false cannot be combined with other assertions: data.txt"
+
+[setup.files."not-boolean.toml"]
+content = """
+name = "Inner with a non-boolean exists"
+
+[[steps]]
+run = "true"
+
+[steps.expected.files."data.txt"]
+exists = "no"
+"""
+
+[[steps]]
+run = "tact not-boolean.toml"
+
+[steps.expected]
+exit-code = 1
+stdout-contains = "! error - exists must be true or false: data.txt"

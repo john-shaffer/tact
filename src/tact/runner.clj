@@ -24,7 +24,8 @@
     "stdout" "stdout-contains" "stdout-not-contains" "stdout-matches"
     "stderr" "stderr-contains" "stderr-not-contains" "stderr-matches"})
 
-(def ^:private file-spec-keys #{"content" "file" "json" "json-open"})
+(def ^:private file-spec-keys
+  #{"content" "file" "json" "json-open" "exists" "contains" "not-contains" "matches"})
 
 (defn- scenario-error [msg]
   (throw (ex-info msg {:type ::scenario-error})))
@@ -57,7 +58,12 @@
     (check-text-values! expected "stdout-")
     (check-text-values! expected "stderr-")
     (doseq [[path spec] (get expected "files")]
-      (check-keys! (str "file assertion (" path ")") file-spec-keys spec))))
+      (check-keys! (str "file assertion (" path ")") file-spec-keys spec)
+      (check-text-values! spec "")
+      (when-not (boolean? (get spec "exists" true))
+        (scenario-error (str "exists must be true or false: " path)))
+      (when (and (false? (get spec "exists")) (next spec))
+        (scenario-error (str "exists = false cannot be combined with other assertions: " path))))))
 
 (defn- load-scenario [path]
   (-> path slurp toml/read-string))
@@ -178,12 +184,18 @@
              :actual text))))
 
 (defn- check-file [work-dir base-dir path spec]
-  (let [full-path (work-path work-dir path)]
+  (let [full-path (work-path work-dir path)
+        exists?   (fs/exists? full-path)]
     (cond
-      (not (fs/exists? full-path))
+      (false? (get spec "exists"))
+      [(if exists?
+         {:type :fail :path path :check "exists" :message (str "File exists: " path)}
+         {:type :pass :path path :check "exists"})]
+
+      (not exists?)
       [{:type :fail :path path :check "exists" :message (str "File does not exist: " path)}]
 
-      (empty? spec)
+      (empty? (dissoc spec "exists"))
       [{:type :pass :path path :check "exists"}]
 
       :else
@@ -202,7 +214,10 @@
           (conj (compare-json path "json" actual-str (parse-json-spec (get spec "json")) =))
 
           (contains? spec "json-open")
-          (conj (compare-json path "json-open" actual-str (parse-json-spec (get spec "json-open")) json-open-match?)))))))
+          (conj (compare-json path "json-open" actual-str (parse-json-spec (get spec "json-open")) json-open-match?))
+
+          :always
+          (into (text-checks {:path path} path actual-str spec "")))))))
 
 (defn- check-expected [work-dir base-dir result {:strs [expected]}]
   (if (:timed-out result)

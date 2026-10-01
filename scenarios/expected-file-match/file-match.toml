@@ -1,0 +1,22 @@
+name = "File existence and partial content matching"
+
+[setup.files."config.json"]
+content = '{"tools": ["taplo", "jq"]}'
+
+[setup.files."old.txt"]
+content = "remove me"
+
+[[steps]]
+run = "rm old.txt && echo created > new.txt"
+
+[steps.expected.files."old.txt"]
+exists = false
+
+[steps.expected.files."new.txt"]
+exists = true
+
+[steps.expected.files."config.json"]
+contains = ['"taplo"', '"jq"']
+not-contains = "outdated"
+matches = '"tools": \[.*\]'
+json-open = { tools = ["taplo", "jq"] }
