@@ -1,0 +1,8 @@
+{
+  "shellPkgs": [
+    "jsonfmt",
+    "just",
+    "nixfmt",
+    "taplo"
+  ]
+}

@@ -17,10 +17,7 @@ check: test
 
 # Format source code and data
 format:
-    just --fmt --unstable -f justfile
-    fd -e json -x jsonfmt -w
-    fd -e nix -x nixfmt
-    fd -e toml -x taplo format
+    sand format
     standard-clj fix
 
 _jar-app-path:

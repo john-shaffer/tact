@@ -9,6 +9,11 @@
       url = "github:jlesquembre/clj-nix";
     };
     flake-utils.url = "github:numtide/flake-utils";
+    sand = {
+      inputs.clj-nix.follows = "clj-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      url = "github:john-shaffer/sand";
+    };
   };
 
   outputs =
@@ -73,8 +78,7 @@
               clojure
               deps-lock
               just
-              nixfmt
-              taplo
+              sand.packages.${system}.default
             ]
             ++ scenarioCheckInputs;
           shellHook = ''
