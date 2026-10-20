@@ -96,6 +96,7 @@
                 deps-lock
                 just
                 nixfmt
+                sand.packages.${system}.default
                 taplo
               ]
               ++ scenarioCheckInputs;
